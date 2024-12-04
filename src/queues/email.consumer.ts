@@ -37,7 +37,7 @@ export async function consumeAuthEmailMessage(channel: Channel): Promise<void> {
     }
 }
 
-export async function consumeOrderEmailMessages(channel: Channel): Promise<void> {
+export async function consumeOrderEmailMessages(channel: Channel): Promise<void> { //Mục tiêu chính của hàm này là lắng nghe (consume) các tin nhắn từ một hàng đợi RabbitMQ và gửi email cho người dùng theo các mẫu thông báo khác nhau.
     try {
         if (!channel) {
             channel = await createConnection() as Channel;
@@ -47,8 +47,9 @@ export async function consumeOrderEmailMessages(channel: Channel): Promise<void>
         const queueName = 'order-email-queue';
         await channel.assertExchange(exchangeName, 'direct');
         const jobberQueue = await channel.assertQueue(queueName, { durable: true, autoDelete: false });
+        console.log('jobberQueue  :',jobberQueue)
         await channel.bindQueue(jobberQueue.queue, exchangeName, routingKey);
-        channel.consume(jobberQueue.queue, async (msg: ConsumeMessage | null) => {
+        channel.consume(jobberQueue.queue, async (msg: ConsumeMessage | null) => { //channel.consume(): Hàm này bắt đầu lắng nghe tin nhắn từ queue order-email-queue. Mỗi khi một tin nhắn mới đến, hàm callback này sẽ được gọi.
             const { receiverEmail,
                 username,
                 template,
@@ -72,7 +73,7 @@ export async function consumeOrderEmailMessages(channel: Channel): Promise<void>
                 type,
                 message,
                 serviceFee,
-                total } = JSON.parse(msg!.content.toString());
+                total } = JSON.parse(msg!.content.toString());//Trong đoạn mã của bạn, bạn đang sử dụng msg.content.toString() để chuyển đổi content (một Buffer) thành chuỗi và sau đó phân tích cú pháp JSON từ chuỗi đó:
 
             const locals: IEmailLocals = {
                 appLink: `${config.CLIENT_URL}`,
@@ -101,6 +102,7 @@ export async function consumeOrderEmailMessages(channel: Channel): Promise<void>
                 total
             }
             console.log('template',template)
+            console.log('msg:  ',msg )
             if (template === 'orderPlaced'){
                 await sendEmail('orderPlaced',receiverEmail,locals)
                 await sendEmail('orderReciept',receiverEmail,locals)
@@ -108,9 +110,27 @@ export async function consumeOrderEmailMessages(channel: Channel): Promise<void>
             else {
                 await sendEmail(template,receiverEmail,locals)
             }
-            channel.ack(msg!);
+            channel.ack(msg!);//Đây là cách để xác nhận rằng tin nhắn đã được xử lý thành công. Sau khi email được gửi thành công, tin nhắn từ queue sẽ bị xóa khỏi queue. Nếu không gọi ack(), tin nhắn sẽ không bị xóa và sẽ được xử lý lại.
+
         });
     } catch (error) {
         log.log('error', 'NotificationService EmailConsumer consumeOrderEmailMessages() method error:', error);
     }
 }
+
+
+//Vi du Code
+//=============================================================
+//channel.consume(jobberQueue.queue, async (msg: ConsumeMessage | null) => {
+//    if (msg) {
+        // Chuyển Buffer content thành chuỗi và phân tích cú pháp JSON
+  //      const { receiverEmail, username, template } = JSON.parse(msg.content.toString());
+
+        // Gửi email hoặc thực hiện xử lý khác
+    //    console.log(`Email to: ${receiverEmail}, Username: ${username}, Template: ${template}`);
+
+        // Xác nhận tin nhắn đã được xử lý
+      //  channel.ack(msg);
+    //}
+//});
+//===============================================================
